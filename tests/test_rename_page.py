@@ -105,6 +105,22 @@ def test_presets_menu_lists_names_and_the_dialog_saves(qapp, monkeypatch):
     assert page._presets() == {}
 
 
+def test_detect_pattern_menu_offers_shapes_and_adds_a_replace_rule(qapp, tmp_path: Path):
+    for name in ("IMG_0001.jpg", "IMG_0002.jpg", "IMG_0003.jpg", "a&b 1.txt", "a&b 2.txt", "notes.txt", "Folder 7"):
+        (tmp_path / name).write_text("x")
+    page = RenamePage()
+    page._build_detect_menu()
+    texts = [a.text() for a in page.detect_menu.actions()]
+    assert texts == ["No repeating pattern in scope"] and not page.detect_menu.actions()[0].isEnabled()
+    page.set_items(sorted(tmp_path.iterdir()), tmp_path)
+    page._build_detect_menu()
+    actions = page.detect_menu.actions()
+    assert [a.text() for a in actions] == [r"^IMG_(\d{4})$    3 of 7", r"^a\&&b\ (\d{1})$    2 of 7"]
+    actions[0].trigger()
+    assert page.rules == [Replace(find=r"^IMG_(\d{4})$", replace=r"IMG_\1", regex=True)]
+    assert page.rule_list.currentRow() == 0 and page.editors.currentWidget().rule is page.rules[0]
+
+
 def test_order_reverse_and_hide_unchanged(qapp, tree: Path, monkeypatch):
     import os
 

@@ -12,8 +12,9 @@ from PySide6.QtWidgets import (
     QVBoxLayout, QWidget,
 )
 
+from batch_file_manager.core.pattern import infer_patterns
 from batch_file_manager.core.plan import Planned, apply_renames, plan_renames, read_journal, undo, write_journal
-from batch_file_manager.core.rules import RULES, Rule, from_dicts, to_dicts
+from batch_file_manager.core.rules import RULES, Item, Replace, Rule, from_dicts, to_dicts
 from batch_file_manager.core.scan import ORDERS, order_paths
 from batch_file_manager.ui.rule_editors import RuleEditor
 from batch_file_manager.ui.settings import settings
@@ -52,13 +53,17 @@ class RenamePage(QWidget):
         self.presets_menu = QMenu(self.presets_button)
         self.presets_menu.aboutToShow.connect(self._build_presets_menu)
         self.presets_button.setMenu(self.presets_menu)
+        self.detect_button = QToolButton(text="Detect pattern", popupMode=QToolButton.ToolButtonPopupMode.InstantPopup)
+        self.detect_menu = QMenu(self.detect_button)
+        self.detect_menu.aboutToShow.connect(self._build_detect_menu)
+        self.detect_button.setMenu(self.detect_menu)
         self.remove_button = QPushButton("Remove", clicked=self.remove_rule)
         self.up_button = QPushButton("Up", clicked=lambda: self.move_rule(-1))
         self.down_button = QPushButton("Down", clicked=lambda: self.move_rule(1))
         self.clear_button = QPushButton("Clear", clicked=self.clear_rules)
         bar = QHBoxLayout()
         bar.setSpacing(8)
-        for b in (add, self.presets_button, self.remove_button, self.up_button, self.down_button, self.clear_button):
+        for b in (add, self.presets_button, self.detect_button, self.remove_button, self.up_button, self.down_button, self.clear_button):
             bar.addWidget(b)
         bar.addStretch()
         left = QVBoxLayout()
@@ -273,6 +278,19 @@ class RenamePage(QWidget):
         delete.setEnabled(bool(names))
         for name in names:
             delete.addAction(name, lambda name=name: self.delete_preset(name))
+
+    # --- detect pattern ------------------------------------------------------------
+    def _build_detect_menu(self) -> None:
+        """The commonest name shapes in scope as regexes; picking one adds a no-op Replace rule to edit."""
+        menu = self.detect_menu
+        menu.clear()
+        stems = [Item.from_path(p, 0).stem for p in self._paths]
+        found = infer_patterns(stems)
+        if not found:
+            menu.addAction("No repeating pattern in scope").setEnabled(False)
+        for regex, repl, count in found:
+            text = f"{regex}    {count} of {len(stems)}".replace("&", "&&")
+            menu.addAction(text, lambda regex=regex, repl=repl: self.add_rule(Replace(find=regex, replace=repl, regex=True)))
 
     # --- preview -------------------------------------------------------------------
     def set_items(self, paths: list[Path], root: Path | None) -> None:

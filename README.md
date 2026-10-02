@@ -56,6 +56,11 @@ reorder. Your rule list is remembered between runs.
 **Presets** keeps rule lists you use again: **Save as...** stores the current list under a name, picking a
 name from the menu replaces the current list with it, and **Delete** removes one.
 
+**Detect pattern** reads the names in scope and lists their commonest shapes as regular expressions, with
+how many names each one covers: `^IMG_(\d{4})$    42 of 50`. Pick one and a Replace rule is added with
+that regex as *Find* and a replacement that keeps the name as it is; edit the replacement from there,
+`\1` being the first group.
+
 | Rule | What it does |
 |---|---|
 | **Replace** | Find text and replace it. Tick *Regex* for a regular expression; `\1` in the replacement is the first group. *Scope* picks the name, the extension or both. |

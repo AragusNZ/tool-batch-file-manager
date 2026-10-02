@@ -35,6 +35,7 @@ batch_file_manager/
     rules.py      the rule dataclasses, apply_rules(), validate_name(), to_dicts()/from_dicts()
     plan.py       plan_renames() -> Planned rows; apply_renames() two-phase, deepest folder first; journal + undo
     update.py     GitHub latest-release check
+    pattern.py    infer_patterns(): regex + identity replacement for the commonest name shapes in scope
   tools/rename.py the Rename tab: rule list, generic rule editor, preview table, Rename / Undo
   ui/             Qt only: scope panel, rule_editors (one form built from any rule dataclass), theme, worker, settings
   assets/         icon.ico and the SVGs it is generated from

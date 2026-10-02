@@ -43,6 +43,7 @@ class Scenario:
     pattern: str = ""
     regex: bool = False
     blocked: str = ""  # expected substring of the summary when Rename must stay disabled; expect is then ignored
+    detect_replace: str = ""  # pick the top Detect pattern entry, then set its replacement to this
     tree: list[str] = field(default_factory=lambda: list(TREE))
 
 
@@ -105,6 +106,13 @@ SCENARIOS: list[Scenario] = [
         [Remove(digits=True), Spaces(replace_with="_"), Move(count=1, from_start=True, to_start=False)],
         {"ile_onef.txt": "file 1 one.txt", "ile_twof.txt": "file 2 two.txt"},
         tree=["file 1 one.txt", "file 2 two.txt"],
+    ),
+    Scenario(
+        "detect pattern feeds a replace rule",
+        [],
+        {"Photo-0001.jpg": "IMG_0001.jpg", "Photo-0002.jpg": "IMG_0002.jpg", "Photo-0003.jpg": "IMG_0003.jpg",
+         "notes.txt": "notes.txt"},
+        tree=["IMG_0001.jpg", "IMG_0002.jpg", "IMG_0003.jpg", "notes.txt"], detect_replace=r"Photo-\1",
     ),
     Scenario(
         "disabled rule is skipped",
@@ -177,6 +185,12 @@ def run(scenario: Scenario, window: app_module.MainWindow, root: Path, pause: in
     page.clear_rules()
     for rule in scenario.rules:
         page.add_rule(rule)
+        QTest.qWait(pause // 2)
+    if scenario.detect_replace:
+        page._build_detect_menu()
+        page.detect_menu.actions()[0].trigger()
+        page.rules[-1].replace = scenario.detect_replace
+        page._rule_edited()
         QTest.qWait(pause // 2)
     page._timer.stop()
     page.refresh()

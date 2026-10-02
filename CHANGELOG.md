@@ -22,6 +22,8 @@ All notable changes to this project are documented here, in
   would clash, overwrite an existing file or break Windows naming rules are shown in red and block the
   Rename button; nothing is renamed around a problem. Swaps and case-only renames work in one pass, and
   folders are renamed after the files inside them.
+- **Detect pattern** on the Rename tab reads the names in scope and offers their commonest shapes as
+  ready-made regexes, each with how many names it covers; picking one adds a Replace rule to edit.
 - **Undo last rename** reverses the previous run, survives a restart, and undoing twice redoes.
 - Light, dark and system themes; the window reopens where it was closed; the rule list is remembered.
 - Update check against GitHub on start (**Help > Check on Startup** turns it off) and on demand.
