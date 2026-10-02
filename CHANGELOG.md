@@ -5,6 +5,8 @@ All notable changes to this project are documented here, in
 
 ## [Unreleased]
 
+## [1.0.0] - 2026-10-02
+
 ### Fixed
 
 - Controls no longer crop at smaller window sizes: the window's minimum now comes from its content
