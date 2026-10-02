@@ -1,0 +1,40 @@
+# Cuts the Windows release on a v* tag. Building here rather than by hand is what gives the
+# download a stable URL: SmartScreen reputation is tracked per file hash and per source, so a
+# hand-copied exe starts from zero every time. A runner build also keeps the \\wsl.localhost
+# source paths that ./build.sh bakes in out of the shipped binary.
+name: release
+
+on:
+    push:
+        tags:
+        - 'v*'
+
+permissions:
+    contents: write
+
+jobs:
+    release:
+        runs-on: windows-latest
+        steps:
+            - uses: actions/checkout@v4
+
+            - uses: actions/setup-python@v5
+              with:
+                  python-version: "3.12"
+                  cache: pip
+
+            - run: pip install -r requirements.txt -r requirements-dev.txt
+
+            # conftest.py already forces QT_QPA_PLATFORM=offscreen.
+            - run: pytest
+
+            - run: choco install innosetup -y --no-progress
+
+            - run: powershell -NoProfile -ExecutionPolicy Bypass -File build.ps1
+
+            - uses: softprops/action-gh-release@v2
+              with:
+                  files: |
+                      dist/BatchFileManager-*-setup.exe
+                      dist/BatchFileManager-*.zip
+                      dist/SHA256SUMS.txt

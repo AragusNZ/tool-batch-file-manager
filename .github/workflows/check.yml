@@ -1,0 +1,29 @@
+# The gate for a standalone Python tool repo. pytest from the venv is the whole gate; the apt
+# packages are what PySide6 needs to load offscreen on a headless runner.
+name: check
+
+on:
+    push:
+        tags:
+        - 'v*'
+    pull_request:
+
+env:
+    QT_QPA_PLATFORM: offscreen
+
+jobs:
+    check:
+        runs-on: ubuntu-latest
+        steps:
+            - uses: actions/checkout@v4
+
+            - uses: actions/setup-python@v5
+              with:
+                  python-version: "3.12"
+                  cache: pip
+
+            - run: sudo apt-get update && sudo apt-get install -y libegl1 libgl1 libxkbcommon0
+
+            - run: pip install -r requirements.txt -r requirements-dev.txt
+
+            - run: pytest --cov --cov-fail-under=95

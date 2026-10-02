@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256">
+  <!-- Folder with a tab, and a rename arrow across the lower third. Flat shapes only so it survives 16px. -->
+  <path d="M24 56a12 12 0 0 1 12-12h64l24 24h96a12 12 0 0 1 12 12v132a12 12 0 0 1-12 12H36a12 12 0 0 1-12-12z" fill="#f2c14e"/>
+  <path d="M24 96h208v116a12 12 0 0 1-12 12H36a12 12 0 0 1-12-12z" fill="#f7d57a"/>
+  <path d="M24 56a12 12 0 0 1 12-12h64l24 24h96a12 12 0 0 1 12 12v132a12 12 0 0 1-12 12H36a12 12 0 0 1-12-12z" fill="none" stroke="#9a7a1e" stroke-width="6"/>
+  <!-- rename band -->
+  <rect x="16" y="146" width="224" height="68" rx="8" fill="#2563eb"/>
+  <text x="52" y="194" font-family="Arial, Helvetica, sans-serif" font-size="44" font-weight="bold" fill="#ffffff">A</text>
+  <path d="M100 180h56" stroke="#ffffff" stroke-width="10" stroke-linecap="round"/>
+  <path d="M142 162l20 18-20 18" fill="none" stroke="#ffffff" stroke-width="10" stroke-linecap="round" stroke-linejoin="round"/>
+  <text x="176" y="194" font-family="Arial, Helvetica, sans-serif" font-size="44" font-weight="bold" fill="#ffffff">B</text>
+</svg>

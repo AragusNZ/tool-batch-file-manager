@@ -1,0 +1,23 @@
+{
+  "_generated": "by ai-agents-wire from ai-agents-config; re-run ai-agents-wire to refresh",
+  "version": 1,
+  "hooks": {
+    "beforeShellExecution": [
+      {
+        "command": "python3 .cursor/hooks/guard.py project-core coding-core python-tool",
+        "type": "command",
+        "timeout": 30,
+        "failClosed": false
+      }
+    ],
+    "preToolUse": [
+      {
+        "command": "python3 .cursor/hooks/guard.py project-core coding-core python-tool",
+        "type": "command",
+        "timeout": 30,
+        "failClosed": false,
+        "matcher": "Write"
+      }
+    ]
+  }
+}

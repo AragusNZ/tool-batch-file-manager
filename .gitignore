@@ -1,0 +1,25 @@
+.venv/
+build/
+dist/
+*.spec
+__pycache__/
+.pytest_cache/
+.coverage
+
+# >>> ai-agents-wire rules (managed -- do not edit) >>>
+/.claude/rules/coding-core
+/.claude/rules/python-tool
+# <<< ai-agents-wire rules (managed) <<<
+
+# >>> ai-agents-wire cursor (managed -- do not edit) >>>
+/.cursor/commands/todo-triage.md
+/.cursor/rules/coding-core
+/.cursor/rules/python-tool
+/.cursor/skills/finding-confidence
+/.cursor/skills/python-tool-workflow
+/.cursor/skills/rewire-contract
+/.cursor/skills/todo-triage
+/.cursor/skills/triage-actions
+!/.cursor/hooks.json
+!/.cursor/hooks/
+# <<< ai-agents-wire cursor (managed) <<<
