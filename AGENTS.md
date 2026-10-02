@@ -39,7 +39,8 @@ batch_file_manager/
   ui/             Qt only: scope panel, rule_editors (one form built from any rule dataclass), theme, worker, settings
   assets/         icon.ico and the SVGs it is generated from
 tools/make_icon.py  regenerates assets/icon.ico from the SVGs
-tests/            pytest, one file per core module plus test_app / test_rename_page / test_ui
+tools/smoke.py    SCENARIOS: end-to-end runs through the real window; `python tools/smoke.py` to watch, pytest runs them too
+tests/            pytest, one file per core module plus test_app / test_rename_page / test_ui / test_scenarios
 packaging/batch-file-manager.iss  the Inno Setup installer, compiled by build.ps1
 ```
 
@@ -57,6 +58,8 @@ bundles it into the exe. Never hardcode it, and never bump it — a bump is the 
    `int` → spin box, `str` → line edit, a name in `choices` → combo box. No UI code is needed.
 2. Add it to `RULES` and the `Rule` union. It appears in the Add rule menu in that order.
 3. Test it in `tests/test_rules.py`; the round-trip test covers every class in `RULES`.
+4. Add a `Scenario` to `tools/smoke.py` that uses it end to end. Every feature gets one; that list is the
+   manual smoke test, automated, and `tests/test_scenarios.py` runs it in the gate.
 
 ## Adding a tool
 

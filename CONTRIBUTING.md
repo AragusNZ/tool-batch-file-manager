@@ -35,6 +35,20 @@ single `QApplication` for the session. Never construct a second one. Two autouse
 your real settings and undo journal: `_clean_settings` wipes the app's QSettings keys, `journal_file` points
 the journal at a scratch file.
 
+## Smoke test
+
+`tools/smoke.py` holds `SCENARIOS`: each builds a scratch tree, scopes the real window to it, adds rules,
+renames, checks where every file ended up, undoes, and checks the tree is back. The same list runs two ways:
+
+```
+python tools/smoke.py              # visible window under WSLg; pauses so you can watch each step
+python tools/smoke.py -k swap      # only matching scenarios; --pause 0 runs flat out
+pytest tests/test_scenarios.py     # offscreen, part of the gate
+```
+
+Every new rule, scope option or tool behaviour gets a `Scenario`. A scenario either names the expected
+tree after the rename (`expect`) or the summary text that must block the Rename button (`blocked`).
+
 ## Layout
 
 ```
@@ -49,7 +63,8 @@ batch_file_manager/
   ui/             Qt only: scope panel, rule_editors, theme, worker, settings
   assets/         icon.ico and the SVGs it is generated from
 tools/make_icon.py  regenerates assets/icon.ico from the SVGs
-tests/            pytest, one file per core module plus test_app / test_rename_page / test_ui
+tools/smoke.py    end-to-end scenarios through the real window (see Smoke test)
+tests/            pytest, one file per core module plus test_app / test_rename_page / test_ui / test_scenarios
 packaging/batch-file-manager.iss  the Inno Setup installer, compiled by build.ps1
 ```
 
