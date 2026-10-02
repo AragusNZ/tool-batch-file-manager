@@ -20,7 +20,9 @@ Download the latest **`BatchFileManager-<version>-setup.exe`** from
 - To update: on start it checks GitHub for a newer release and offers to open the download page.
   **Help > Check for Updates** asks any time; untick **Help > Check on Startup** to stop the automatic
   check. Run the new `setup.exe` over the top — it upgrades in place and keeps your settings.
-- Right-click a folder in Explorer and choose **Send to > Batch File Manager** to open it straight away.
+- Right-click a folder in Explorer and choose **Open in Batch File Manager** to open it straight away (on
+  Windows 11 it sits under **Show more options**; the installer offers to skip this entry). **Send to >
+  Batch File Manager** does the same.
 - To remove it: **Settings > Apps > Installed apps > Batch File Manager > Uninstall**.
 
 Verify a download against `SHA256SUMS.txt` from the same release:
@@ -40,6 +42,8 @@ The **Folder** panel at the top decides what every tool works on.
 - **Only names matching** narrows the list: a glob like `*.jpg` or `IMG_????.*` (matching the whole
   name), or switch to **Regex** for a pattern searched anywhere in the name, like `^\d{4}-`. Both ignore
   case unless **Match case** is ticked.
+- **Excluding** leaves names out, in the same glob or regex form: `*.bak`, `~*`, `.git`. An excluded folder
+  is skipped entirely, subfolders and all.
 
 The line underneath says how many items are in scope.
 
@@ -48,6 +52,9 @@ The line underneath says how many items are in scope.
 Rules run top to bottom. **Add rule** opens the menu, each rule shows its own settings on the right, and
 the preview updates as you type. Tick a rule off to skip it without deleting it; **Up** and **Down**
 reorder. Your rule list is remembered between runs.
+
+**Presets** keeps rule lists you use again: **Save as...** stores the current list under a name, picking a
+name from the menu replaces the current list with it, and **Delete** removes one.
 
 | Rule | What it does |
 |---|---|
@@ -62,10 +69,15 @@ reorder. Your rule list is remembered between runs.
 | **Folder name** | Add the parent folder's name; *levels* 2 adds the grandparent too. |
 | **Numbering** | Add a counter in preview order with a start, step and minimum digits; optionally restart in each folder. |
 | **Extension** | Lower, upper or title-case the extension, set it, remove it or append another. |
-| **Template** | Build the name from tokens: `{name}` `{ext}` `{n}` `{n:03}` `{parent}` `{date}` `{date:%Y%m%d}`. |
+| **Template** | Build the name from tokens: `{name}` `{ext}` `{n}` `{n:03}` `{parent}` `{date}` `{date:%Y%m%d}`. `{n}` counts from 1 in preview order. |
 
-The preview lists every item in scope with its new name. Grey rows are unchanged. Red rows are problems —
-hover for the reason — and the **Rename** button stays off until there are none:
+The preview lists every item in scope with its new name. **Order** sets the sequence Numbering and `{n}`
+count in: by path, by name (natural, so `IMG_2` comes before `IMG_10`) or by date modified, with **Reverse**
+to flip it. **Hide unchanged** shows only the rows that will change or have a problem. Double-click a row to
+open its folder in Explorer.
+
+Grey rows are unchanged. Red rows are problems — hover for the reason — and the **Rename** button stays off
+until there are none:
 
 - two items would end up with the same name;
 - the new name is already taken by something not in this batch;

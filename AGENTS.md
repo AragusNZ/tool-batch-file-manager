@@ -31,7 +31,7 @@ or contributing belongs in it. `CONTRIBUTING.md` is the human long form of this 
 batch_file_manager/
   app.py          the window: Folder panel, tool tabs, log, status bar, jobs on the worker, update check
   core/           pure Python, no Qt import anywhere
-    scan.py       ScopeSpec + scan(): the items in scope
+    scan.py       ScopeSpec + scan(): the items in scope; order_paths() for the preview order
     rules.py      the rule dataclasses, apply_rules(), validate_name(), to_dicts()/from_dicts()
     plan.py       plan_renames() -> Planned rows; apply_renames() two-phase, deepest folder first; journal + undo
     update.py     GitHub latest-release check

@@ -56,6 +56,86 @@ def test_corrupt_saved_rules_are_ignored(qapp):
     assert RenamePage().rules == []
 
 
+def test_presets_save_load_delete(qapp):
+    page = RenamePage()
+    page.add_rule(Replace(find="a", replace="b"))
+    page.add_rule(Case(mode="upper"))
+    page.save_preset("  tidy  ")
+    page.save_preset("   ")  # blank: ignored
+    assert sorted(page._presets()) == ["tidy"]
+    again = RenamePage()
+    again.add_rule(Insert(text="x"))
+    again.load_preset("tidy")
+    assert [r.kind for r in again.rules] == ["replace", "case"] and again.rules[1] == Case(mode="upper")
+    assert again.rule_list.currentRow() == -1 and again.editors.count() == 3
+    again.load_preset("nope")
+    assert [r.kind for r in again.rules] == ["replace", "case"]
+    again.save_preset("tidy")  # overwrite with the same name
+    page.delete_preset("tidy")
+    page.delete_preset("tidy")  # already gone
+    assert page._presets() == {}
+    app_module.settings().setValue("rename/presets", "[not a dict]")
+    assert page._presets() == {}
+    app_module.settings().setValue("rename/presets", "{broken")
+    assert page._presets() == {}
+
+
+def test_presets_menu_lists_names_and_the_dialog_saves(qapp, monkeypatch):
+    page = RenamePage()
+    page._build_presets_menu()
+    texts = [a.text() for a in page.presets_menu.actions()]
+    assert texts == ["Save as...", "Delete"]
+    assert not page.presets_menu.actions()[0].isEnabled() and not page.presets_menu.actions()[1].isEnabled()
+    page.add_rule(Case())
+    monkeypatch.setattr(rename_module.QInputDialog, "getText", lambda *a, **k: ("mine", True))
+    page._build_presets_menu()
+    page.presets_menu.actions()[0].trigger()
+    assert "mine" in page._presets()
+    page._build_presets_menu()
+    actions = page.presets_menu.actions()
+    assert [a.text() for a in actions] == ["mine", "", "Save as...", "Delete"]
+    assert actions[3].menu().isEnabled() and [a.text() for a in actions[3].menu().actions()] == ["mine"]
+    page.clear_rules()
+    actions[0].trigger()
+    assert [r.kind for r in page.rules] == ["case"]
+    actions[3].menu().actions()[0].trigger()
+    assert page._presets() == {}
+    monkeypatch.setattr(rename_module.QInputDialog, "getText", lambda *a, **k: ("ignored", False))
+    page._save_preset_dialog()
+    assert page._presets() == {}
+
+
+def test_order_reverse_and_hide_unchanged(qapp, tree: Path, monkeypatch):
+    import os
+
+    os.utime(tree / "a.txt", (0, 100))
+    os.utime(tree / "b.txt", (0, 300))
+    os.utime(tree / "photo.JPG", (0, 200))
+    page = RenamePage()
+    page.add_rule(Template(pattern="{n}-{name}"))
+    page.set_items(sorted(p for p in tree.iterdir() if p.is_file()), tree)
+    assert [r[1] for r in rows(page)] == ["1-a.txt", "2-b.txt", "3-photo.JPG"]
+    page.order.setCurrentIndex(2)  # modified
+    assert [r[1] for r in rows(page)] == ["1-a.txt", "2-photo.JPG", "3-b.txt"]
+    page.reverse.setChecked(True)
+    assert [r[1] for r in rows(page)] == ["1-b.txt", "2-photo.JPG", "3-a.txt"]
+    assert app_module.settings().value("rename/order") == "modified"
+    again = RenamePage()
+    assert again.order.currentData() == "modified" and again.reverse.isChecked() and not again.hide_unchanged.isChecked()
+    app_module.settings().setValue("rename/order", "bogus")
+    assert RenamePage().order.currentData() == "path"
+    page.clear_rules()
+    page.add_rule(Extension(mode="lower"))
+    page.hide_unchanged.setChecked(True)
+    assert [page.table.isRowHidden(i) for i in range(3)] == [True, False, True]  # b, photo.JPG, a (reversed modified)
+    page.hide_unchanged.setChecked(False)
+    assert not any(page.table.isRowHidden(i) for i in range(3))
+    opened: list = []
+    monkeypatch.setattr(rename_module.QDesktopServices, "openUrl", lambda url: opened.append(url.toLocalFile()))
+    page._open_row(page.table.item(1, 1))
+    assert opened == [str(tree)]
+
+
 def test_editor_widgets_follow_the_field_types_and_update_summary(qapp):
     page = RenamePage()
     page.add_rule(Numbering())
@@ -116,11 +196,11 @@ def test_rename_then_undo_through_the_window(qapp, tree: Path, monkeypatch, jour
     page.rename()
     wait_job(w, qapp)
     # preview order is path order: Sub, Sub/Deep, Sub/Deep/d.txt, Sub/c.TXT, a.txt, b.txt, photo.JPG
-    assert sorted(p.name for p in tree.iterdir()) == ["00-Sub", "04-a.txt", "05-b.txt", "06-photo.JPG"]
-    assert (tree / "00-Sub" / "01-Deep" / "02-d.txt").exists() and (tree / "00-Sub" / "03-c.TXT").exists()
+    assert sorted(p.name for p in tree.iterdir()) == ["01-Sub", "05-a.txt", "06-b.txt", "07-photo.JPG"]
+    assert (tree / "01-Sub" / "02-Deep" / "03-d.txt").exists() and (tree / "01-Sub" / "04-c.TXT").exists()
     assert page.undo_button.isEnabled() and journal_file.exists()
-    assert "a.txt -> 04-a.txt" in w.log_view.toPlainText()
-    assert [r[0] for r in rows(page)][-1] == "06-photo.JPG"  # the preview follows the rescan
+    assert "a.txt -> 05-a.txt" in w.log_view.toPlainText()
+    assert [r[0] for r in rows(page)][-1] == "07-photo.JPG"  # the preview follows the rescan
     page.clear_rules()
     page.undo()
     wait_job(w, qapp)
@@ -204,6 +284,8 @@ def test_scope_panel_accepts_a_dropped_folder_only(qapp, tree: Path):
     assert ev.accepted
     panel.dropEvent(ev)
     assert panel.folder.text() == str(tree / "Sub") and panel.spec().folder == tree / "Sub"
+    panel.exclude.setText("*.bak")
+    assert panel.spec().exclude == "*.bak"
     panel.restore(True, "nonsense")
     assert panel.recurse.isChecked() and panel.kinds.currentData() == "files"
 

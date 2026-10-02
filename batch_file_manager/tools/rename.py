@@ -4,20 +4,23 @@ import json
 from pathlib import Path
 from typing import Callable
 
-from PySide6.QtCore import Qt, QTimer, Signal
-from PySide6.QtGui import QPalette
+from PySide6.QtCore import Qt, QTimer, QUrl, Signal
+from PySide6.QtGui import QDesktopServices, QPalette
 from PySide6.QtWidgets import (
-    QAbstractItemView, QGroupBox, QHBoxLayout, QHeaderView, QLabel, QListWidget, QListWidgetItem, QMenu, QMessageBox,
-    QPushButton, QStackedWidget, QTableWidget, QTableWidgetItem, QToolButton, QVBoxLayout, QWidget,
+    QAbstractItemView, QCheckBox, QComboBox, QGroupBox, QHBoxLayout, QHeaderView, QInputDialog, QLabel, QListWidget,
+    QListWidgetItem, QMenu, QMessageBox, QPushButton, QStackedWidget, QTableWidget, QTableWidgetItem, QToolButton,
+    QVBoxLayout, QWidget,
 )
 
 from batch_file_manager.core.plan import Planned, apply_renames, plan_renames, read_journal, undo, write_journal
 from batch_file_manager.core.rules import RULES, Rule, from_dicts, to_dicts
+from batch_file_manager.core.scan import ORDERS, order_paths
 from batch_file_manager.ui.rule_editors import RuleEditor
 from batch_file_manager.ui.settings import settings
 
 DEBOUNCE_MS = 250
 STATUS_TEXT = {"ok": "rename", "unchanged": "", "invalid": "invalid", "conflict": "conflict"}
+ORDER_LABELS = {"path": "Path", "name": "Name", "modified": "Date modified"}
 
 
 class RenamePage(QWidget):
@@ -45,13 +48,17 @@ class RenamePage(QWidget):
         for kind, cls in RULES.items():
             menu.addAction(cls.label, lambda kind=kind: self.add_rule(RULES[kind]()))
         add.setMenu(menu)
+        self.presets_button = QToolButton(text="Presets", popupMode=QToolButton.ToolButtonPopupMode.InstantPopup)
+        self.presets_menu = QMenu(self.presets_button)
+        self.presets_menu.aboutToShow.connect(self._build_presets_menu)
+        self.presets_button.setMenu(self.presets_menu)
         self.remove_button = QPushButton("Remove", clicked=self.remove_rule)
         self.up_button = QPushButton("Up", clicked=lambda: self.move_rule(-1))
         self.down_button = QPushButton("Down", clicked=lambda: self.move_rule(1))
         self.clear_button = QPushButton("Clear", clicked=self.clear_rules)
         bar = QHBoxLayout()
         bar.setSpacing(8)
-        for b in (add, self.remove_button, self.up_button, self.down_button, self.clear_button):
+        for b in (add, self.presets_button, self.remove_button, self.up_button, self.down_button, self.clear_button):
             bar.addWidget(b)
         bar.addStretch()
         left = QVBoxLayout()
@@ -76,11 +83,29 @@ class RenamePage(QWidget):
         rules_row.addWidget(editor_box, stretch=2)
 
         # --- preview
+        self.order = QComboBox()
+        for order in ORDERS:
+            self.order.addItem(ORDER_LABELS[order], order)
+        saved_order = settings().value("rename/order", "path")
+        self.order.setCurrentIndex(ORDERS.index(saved_order) if saved_order in ORDERS else 0)
+        self.reverse = QCheckBox("Reverse", checked=settings().value("rename/reverse", False, type=bool))
+        self.hide_unchanged = QCheckBox("Hide unchanged", checked=settings().value("rename/hide_unchanged", False, type=bool))
+        self.order.currentIndexChanged.connect(self._view_changed)
+        self.reverse.toggled.connect(self._view_changed)
+        self.hide_unchanged.toggled.connect(self._view_changed)
+        view = QHBoxLayout()
+        view.setSpacing(8)
+        view.addWidget(QLabel("Order:"))
+        view.addWidget(self.order)
+        view.addWidget(self.reverse)
+        view.addStretch()
+        view.addWidget(self.hide_unchanged)
         self.table = QTableWidget(0, 4)
         self.table.setHorizontalHeaderLabels(["Folder", "Current name", "New name", ""])
         self.table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
         self.table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
         self.table.verticalHeader().hide()
+        self.table.itemDoubleClicked.connect(self._open_row)
         header = self.table.horizontalHeader()
         header.setSectionResizeMode(QHeaderView.ResizeMode.Interactive)
         header.setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)
@@ -88,6 +113,7 @@ class RenamePage(QWidget):
         header.setSectionResizeMode(3, QHeaderView.ResizeMode.ResizeToContents)
         preview_box = QGroupBox("Preview")
         preview_layout = QVBoxLayout(preview_box)
+        preview_layout.addLayout(view)
         preview_layout.addWidget(self.table)
 
         # --- actions
@@ -197,21 +223,83 @@ class RenamePage(QWidget):
             self.add_rule(rule)
         self.rule_list.setCurrentRow(-1)
 
+    # --- presets -------------------------------------------------------------------
+    def _presets(self) -> dict[str, list[dict]]:
+        try:
+            data = json.loads(settings().value("rename/presets", "{}"))
+        except (ValueError, TypeError):
+            return {}
+        return data if isinstance(data, dict) else {}
+
+    def _store_presets(self, presets: dict[str, list[dict]]) -> None:
+        settings().setValue("rename/presets", json.dumps(presets))
+
+    def save_preset(self, name: str) -> None:
+        """Store the current rules under ``name``, replacing a preset of that name. Blank is a no-op."""
+        name = name.strip()
+        if not name:
+            return
+        self._store_presets({**self._presets(), name: to_dicts(self.rules)})
+
+    def load_preset(self, name: str) -> None:
+        """Replace the current rules with the preset's. An unknown name is a no-op."""
+        data = self._presets().get(name)
+        if data is None:
+            return
+        self.clear_rules()
+        for rule in from_dicts(data):
+            self.add_rule(rule)
+        self.rule_list.setCurrentRow(-1)
+
+    def delete_preset(self, name: str) -> None:
+        presets = self._presets()
+        presets.pop(name, None)
+        self._store_presets(presets)
+
+    def _save_preset_dialog(self) -> None:
+        name, ok = QInputDialog.getText(self, "Save preset", "Preset name:")
+        if ok:
+            self.save_preset(name)
+
+    def _build_presets_menu(self) -> None:
+        menu, names = self.presets_menu, sorted(self._presets())
+        menu.clear()
+        for name in names:
+            menu.addAction(name, lambda name=name: self.load_preset(name))
+        if names:
+            menu.addSeparator()
+        menu.addAction("Save as...", self._save_preset_dialog).setEnabled(bool(self.rules))
+        delete = menu.addMenu("Delete")
+        delete.setEnabled(bool(names))
+        for name in names:
+            delete.addAction(name, lambda name=name: self.delete_preset(name))
+
     # --- preview -------------------------------------------------------------------
     def set_items(self, paths: list[Path], root: Path | None) -> None:
         self._paths, self._root = paths, root
         self.refresh()
 
+    def _view_changed(self) -> None:
+        settings().setValue("rename/order", self.order.currentData())
+        settings().setValue("rename/reverse", self.reverse.isChecked())
+        settings().setValue("rename/hide_unchanged", self.hide_unchanged.isChecked())
+        self.refresh()
+
+    def _open_row(self, cell: QTableWidgetItem) -> None:
+        QDesktopServices.openUrl(QUrl.fromLocalFile(str(self._rows[cell.row()].src.parent)))
+
     def refresh(self) -> None:
         """Recompute the plan and redraw the table. Runs on the UI thread."""
         # ponytail: plan on the UI thread; move it to a Worker if a >50k-item folder stalls.
         try:
-            self._rows = plan_renames(self._paths, self.rules)
+            paths = order_paths(self._paths, self.order.currentData(), self.reverse.isChecked())
+            self._rows = plan_renames(paths, self.rules)
             error = ""
         except ValueError as exc:
             self._rows, error = [], str(exc)
         palette = self.palette()
         red, grey = palette.brightText().color(), palette.placeholderText().color()
+        hide = self.hide_unchanged.isChecked()
         self.table.setUpdatesEnabled(False)
         self.table.setRowCount(len(self._rows))
         for i, row in enumerate(self._rows):
@@ -225,6 +313,7 @@ class RenamePage(QWidget):
                 elif row.status == "unchanged":
                     cell.setForeground(grey)
                 self.table.setItem(i, col, cell)
+            self.table.setRowHidden(i, hide and row.status == "unchanged")
         self.table.setUpdatesEnabled(True)
         counts = {s: sum(1 for r in self._rows if r.status == s) for s in STATUS_TEXT}
         problems = counts["invalid"] + counts["conflict"]

@@ -1,4 +1,4 @@
-"""The Folder panel: which folder, how deep, which kinds of item, and the name filter."""
+"""The Folder panel: which folder, how deep, which kinds of item, the name filter and what to leave out."""
 
 from pathlib import Path
 
@@ -33,6 +33,7 @@ class ScopePanel(QGroupBox):
         self.mode = QComboBox()
         self.mode.addItems(["Glob", "Regex"])
         self.match_case = QCheckBox("Match case")
+        self.exclude = QLineEdit(placeholderText="e.g. *.bak or ^~", clearButtonEnabled=True)
         self.summary = QLabel("")
         self.summary.setForegroundRole(QPalette.ColorRole.PlaceholderText)
 
@@ -51,7 +52,9 @@ class ScopePanel(QGroupBox):
         grid.addWidget(self.pattern, 2, 1)
         grid.addWidget(self.mode, 2, 2)
         grid.addWidget(self.match_case, 2, 3)
-        grid.addWidget(self.summary, 3, 0, 1, 4)
+        grid.addWidget(QLabel("Excluding:"), 3, 0)
+        grid.addWidget(self.exclude, 3, 1)
+        grid.addWidget(self.summary, 4, 0, 1, 4)
         grid.setColumnStretch(1, 1)
 
         self._timer = QTimer(self, singleShot=True, interval=DEBOUNCE_MS)
@@ -62,6 +65,7 @@ class ScopePanel(QGroupBox):
         self.pattern.textChanged.connect(self._timer.start)
         self.mode.currentIndexChanged.connect(self._timer.start)
         self.match_case.toggled.connect(self._timer.start)
+        self.exclude.textChanged.connect(self._timer.start)
 
     # --- state -----------------------------------------------------------------
     def spec(self) -> ScopeSpec | None:
@@ -71,6 +75,7 @@ class ScopePanel(QGroupBox):
         return ScopeSpec(
             folder=Path(self.folder.text()), recurse=self.recurse.isChecked(), kinds=self.kinds.currentData(),
             pattern=self.pattern.text(), regex=self.mode.currentIndex() == 1, match_case=self.match_case.isChecked(),
+            exclude=self.exclude.text(),
         )
 
     def set_folder(self, folder: Path) -> bool:

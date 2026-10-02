@@ -398,7 +398,7 @@ class _Tokens(dict):
     """format_map mapping: ``{date}`` with a default format, ``{date:%fmt}`` with a custom one."""
 
     def __init__(self, item: Item, stem: str, ext: str):
-        super().__init__(name=stem, ext=ext.lstrip("."), n=item.index, parent=item.path.parent.name)
+        super().__init__(name=stem, ext=ext.lstrip("."), n=item.index + 1, parent=item.path.parent.name)
         self._item = item
 
     def __missing__(self, key: str) -> str:
@@ -420,7 +420,7 @@ class Template:
     kind: ClassVar[str] = "template"
     label: ClassVar[str] = "Template"
     choices: ClassVar[dict] = {}
-    hint: ClassVar[str] = "Tokens: {name} {ext} {n} {n:03} {parent} {date} {date:%Y%m%d}"
+    hint: ClassVar[str] = "Tokens: {name} {ext} {n} {n:03} {parent} {date} {date:%Y%m%d}. {n} counts from 1."
     pattern: str = "{name}"
     enabled: bool = True
 

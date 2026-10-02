@@ -34,6 +34,21 @@ Name: "{usersendto}\Batch File Manager"; Filename: "{app}\BatchFileManager.exe"
 
 [Tasks]
 Name: desktopicon; Description: "Create a desktop shortcut"; GroupDescription: "Additional icons:"
+Name: contextmenu; Description: "Add ""Open in Batch File Manager"" to the right-click menu of folders"; GroupDescription: "Explorer integration:"
+
+; Explorer > right-click a folder (or the empty space inside one) > Open in Batch File Manager. Per-user keys under
+; HKCU\Software\Classes, so no UAC. Windows 11 lists it under "Show more options": the modern menu needs packaged
+; identity, which an unsigned exe cannot have. uninsdeletekey removes the whole key; the deletekey lines clear an
+; entry left by an earlier install when the task is unticked this time.
+[Registry]
+Root: HKCU; Subkey: "Software\Classes\Directory\shell\BatchFileManager"; ValueType: string; ValueData: "Open in Batch File Manager"; Flags: uninsdeletekey; Tasks: contextmenu
+Root: HKCU; Subkey: "Software\Classes\Directory\shell\BatchFileManager"; ValueType: string; ValueName: "Icon"; ValueData: """{app}\BatchFileManager.exe"""; Tasks: contextmenu
+Root: HKCU; Subkey: "Software\Classes\Directory\shell\BatchFileManager\command"; ValueType: string; ValueData: """{app}\BatchFileManager.exe"" ""%1"""; Tasks: contextmenu
+Root: HKCU; Subkey: "Software\Classes\Directory\Background\shell\BatchFileManager"; ValueType: string; ValueData: "Open in Batch File Manager"; Flags: uninsdeletekey; Tasks: contextmenu
+Root: HKCU; Subkey: "Software\Classes\Directory\Background\shell\BatchFileManager"; ValueType: string; ValueName: "Icon"; ValueData: """{app}\BatchFileManager.exe"""; Tasks: contextmenu
+Root: HKCU; Subkey: "Software\Classes\Directory\Background\shell\BatchFileManager\command"; ValueType: string; ValueData: """{app}\BatchFileManager.exe"" ""%V"""; Tasks: contextmenu
+Root: HKCU; Subkey: "Software\Classes\Directory\shell\BatchFileManager"; Flags: deletekey; Tasks: not contextmenu
+Root: HKCU; Subkey: "Software\Classes\Directory\Background\shell\BatchFileManager"; Flags: deletekey; Tasks: not contextmenu
 
 [Run]
 Filename: "{app}\BatchFileManager.exe"; Description: "Launch Batch File Manager"; Flags: nowait postinstall skipifsilent

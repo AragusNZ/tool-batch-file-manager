@@ -40,7 +40,10 @@ def log():
     return _log
 
 
-SETTINGS_KEYS = ("geometry", "last_dir", "recurse", "kinds", "check_updates", "theme", "rename/rules")
+SETTINGS_KEYS = (
+    "geometry", "last_dir", "recurse", "kinds", "check_updates", "theme",
+    "rename/rules", "rename/presets", "rename/order", "rename/reverse", "rename/hide_unchanged",
+)
 
 
 @pytest.fixture(autouse=True)

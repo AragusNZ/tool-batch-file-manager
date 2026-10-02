@@ -160,7 +160,7 @@ def test_extension_modes():
 
 def test_template_tokens():
     modified = datetime.fromtimestamp(1_700_000_000.0)
-    assert run(Template(pattern="{parent}-{n:03}-{name}"), "a.txt", index=4) == "Sub-004-a.txt"
+    assert run(Template(pattern="{parent}-{n:03}-{name}"), "a.txt", index=4) == "Sub-005-a.txt"
     assert run(Template(pattern="{name}.{ext}.bak"), "a.txt") == "a.txt.bak"
     assert run(Template(pattern="{date} {name}"), "a.txt") == f"{modified:%Y-%m-%d} a.txt"
     assert run(Template(pattern="{date:%Y%m%d}"), "a.txt") == f"{modified:%Y%m%d}.txt"

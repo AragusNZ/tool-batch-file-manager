@@ -7,6 +7,14 @@ All notable changes to this project are documented here, in
 
 ### Added
 
+- **Excluding** in the Folder panel: a second glob or regex that drops matching names, and skips a matching
+  folder with everything inside it.
+- **Presets** on the Rename tab: save the current rule list under a name, load it back, delete it.
+- **Order** and **Reverse** over the preview — by path, natural name or date modified — so Numbering and
+  `{n}` count in the order you want. **Hide unchanged** shows only rows that change or have a problem.
+  Double-clicking a row opens its folder in Explorer.
+- The installer adds **Open in Batch File Manager** to the right-click menu of folders (optional; under
+  *Show more options* on Windows 11).
 - First version. A **Folder** panel scopes every tool to one folder, optionally with subfolders, to files,
   folders or both, filtered by a glob or regex on the name.
 - **Rename** tool: an ordered list of rules — Replace (text or regex), Name, Case, Remove, Spaces,

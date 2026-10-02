@@ -55,7 +55,7 @@ tree after the rename (`expect`) or the summary text that must block the Rename 
 batch_file_manager/
   app.py          the window: Folder panel, tool tabs, log, status bar, jobs on the worker, update check
   core/           pure Python, no Qt import anywhere
-    scan.py       ScopeSpec + scan(): the items in scope
+    scan.py       ScopeSpec + scan(): the items in scope; order_paths() for the preview order
     rules.py      the rule dataclasses, apply_rules(), validate_name(), to_dicts()/from_dicts()
     plan.py       plan_renames() -> Planned rows; apply_renames() two-phase, deepest folder first; journal + undo
     update.py     GitHub latest-release check
@@ -74,7 +74,8 @@ split, not a stylistic preference.
 ## How a rename happens
 
 1. `scan(ScopeSpec)` lists the items: one folder, optionally recursive, files/folders/both, leaf names
-   filtered by a glob or regex.
+   filtered by a glob or regex, minus an exclude pattern in the same form (an excluded folder is not
+   entered). `order_paths` then puts them in the preview order the Rename tab asked for.
 2. `apply_rules(rules, items)` runs the enabled rules in order over every item and returns the new leaf
    names. Rules see `(stem, ext)`; a folder's whole name is its stem.
 3. `plan_renames(paths, rules)` turns those into `Planned` rows with a status: `ok`, `unchanged`, `invalid`

@@ -63,8 +63,8 @@ SCENARIOS: list[Scenario] = [
     Scenario(
         "numbering template across folders, files and folders both",
         [Template(pattern="{n:02}-{name}")],
-        {"00-Sub": None, "00-Sub/01-Deep": None, "00-Sub/01-Deep/02-d.txt": "Sub/Deep/d.txt",
-         "00-Sub/03-c.TXT": "Sub/c.TXT", "04-a.txt": "a.txt", "05-b.txt": "b.txt", "06-photo.JPG": "photo.JPG"},
+        {"01-Sub": None, "01-Sub/02-Deep": None, "01-Sub/02-Deep/03-d.txt": "Sub/Deep/d.txt",
+         "01-Sub/04-c.TXT": "Sub/c.TXT", "05-a.txt": "a.txt", "06-b.txt": "b.txt", "07-photo.JPG": "photo.JPG"},
         recurse=True, kinds="both",
     ),
     Scenario(

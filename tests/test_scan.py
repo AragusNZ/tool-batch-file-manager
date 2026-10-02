@@ -1,10 +1,11 @@
 """Scope: folder, depth, kinds and the name filter."""
 
+import os
 from pathlib import Path
 
 import pytest
 
-from batch_file_manager.core.scan import ScopeSpec, scan
+from batch_file_manager.core.scan import ScopeSpec, order_paths, scan
 
 
 def names(paths: list[Path], root: Path) -> list[str]:
@@ -40,6 +41,33 @@ def test_bad_regex_and_bad_kind_raise(tree: Path):
         scan(ScopeSpec(tree, pattern="(", regex=True))
     with pytest.raises(ValueError, match="kinds"):
         scan(ScopeSpec(tree, kinds="everything"))
+
+
+def test_exclude_drops_names_and_prunes_folders(tree: Path):
+    assert names(scan(ScopeSpec(tree, exclude="*.jpg")), tree) == ["a.txt", "b.txt"]
+    assert names(scan(ScopeSpec(tree, recurse=True, kinds="both", exclude="sub")), tree) == ["a.txt", "b.txt", "photo.JPG"]
+    assert names(scan(ScopeSpec(tree, recurse=True, kinds="both", exclude="sub", match_case=True)), tree) == [
+        "Sub", "Sub/Deep", "Sub/Deep/d.txt", "Sub/c.TXT", "a.txt", "b.txt", "photo.JPG",
+    ]
+    assert names(scan(ScopeSpec(tree, recurse=True, pattern="^[a-d]", exclude="^d", regex=True)), tree) == ["Sub/c.TXT", "a.txt", "b.txt"]
+    assert names(scan(ScopeSpec(tree, exclude="   ")), tree) == ["a.txt", "b.txt", "photo.JPG"]
+    with pytest.raises(ValueError, match="invalid regex"):
+        scan(ScopeSpec(tree, exclude="(", regex=True))
+
+
+def test_order_paths(tmp_path: Path):
+    paths = []
+    for i, name in enumerate(["IMG_10.jpg", "img_2.jpg", "b/IMG_1.jpg", "a.txt"]):
+        p = tmp_path / name
+        p.parent.mkdir(exist_ok=True)
+        p.write_text("x")
+        os.utime(p, (0, 1_700_000_000 - i))  # IMG_10 newest, a.txt oldest
+        paths.append(p)
+    assert names(order_paths(paths), tmp_path) == ["IMG_10.jpg", "a.txt", "b/IMG_1.jpg", "img_2.jpg"]
+    assert names(order_paths(paths, "name"), tmp_path) == ["a.txt", "b/IMG_1.jpg", "img_2.jpg", "IMG_10.jpg"]
+    assert names(order_paths(paths, "modified"), tmp_path) == ["a.txt", "b/IMG_1.jpg", "img_2.jpg", "IMG_10.jpg"]
+    assert names(order_paths(paths, "modified", reverse=True), tmp_path) == ["IMG_10.jpg", "img_2.jpg", "b/IMG_1.jpg", "a.txt"]
+    assert names(order_paths(paths, "nonsense"), tmp_path) == names(order_paths(paths), tmp_path)
 
 
 def test_symlinked_folders_are_listed_but_not_followed(tree: Path):
