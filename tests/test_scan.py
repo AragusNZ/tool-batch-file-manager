@@ -18,15 +18,15 @@ def test_top_level_files_only_by_default(tree: Path):
 
 def test_recurse_and_kinds(tree: Path):
     assert names(scan(ScopeSpec(tree, recurse=True)), tree) == [
-        "Sub/Deep/d.txt", "Sub/c.TXT", "a.txt", "b.txt", "photo.JPG",
+        "a.txt", "b.txt", "photo.JPG", "Sub/c.TXT", "Sub/Deep/d.txt",
     ]
     assert names(scan(ScopeSpec(tree, recurse=True, kinds="folders")), tree) == ["Sub", "Sub/Deep"]
-    assert names(scan(ScopeSpec(tree, kinds="both")), tree) == ["Sub", "a.txt", "b.txt", "photo.JPG"]
+    assert names(scan(ScopeSpec(tree, kinds="both")), tree) == ["a.txt", "b.txt", "photo.JPG", "Sub"]
 
 
 def test_glob_is_whole_name_and_case_insensitive_by_default(tree: Path):
-    assert names(scan(ScopeSpec(tree, recurse=True, pattern="*.txt")), tree) == ["Sub/Deep/d.txt", "Sub/c.TXT", "a.txt", "b.txt"]
-    assert names(scan(ScopeSpec(tree, recurse=True, pattern="*.txt", match_case=True)), tree) == ["Sub/Deep/d.txt", "a.txt", "b.txt"]
+    assert names(scan(ScopeSpec(tree, recurse=True, pattern="*.txt")), tree) == ["a.txt", "b.txt", "Sub/c.TXT", "Sub/Deep/d.txt"]
+    assert names(scan(ScopeSpec(tree, recurse=True, pattern="*.txt", match_case=True)), tree) == ["a.txt", "b.txt", "Sub/Deep/d.txt"]
     assert scan(ScopeSpec(tree, pattern="a")) == []  # a glob must match the whole name
 
 
@@ -47,9 +47,9 @@ def test_exclude_drops_names_and_prunes_folders(tree: Path):
     assert names(scan(ScopeSpec(tree, exclude="*.jpg")), tree) == ["a.txt", "b.txt"]
     assert names(scan(ScopeSpec(tree, recurse=True, kinds="both", exclude="sub")), tree) == ["a.txt", "b.txt", "photo.JPG"]
     assert names(scan(ScopeSpec(tree, recurse=True, kinds="both", exclude="sub", match_case=True)), tree) == [
-        "Sub", "Sub/Deep", "Sub/Deep/d.txt", "Sub/c.TXT", "a.txt", "b.txt", "photo.JPG",
+        "a.txt", "b.txt", "photo.JPG", "Sub", "Sub/c.TXT", "Sub/Deep", "Sub/Deep/d.txt",
     ]
-    assert names(scan(ScopeSpec(tree, recurse=True, pattern="^[a-d]", exclude="^d", regex=True)), tree) == ["Sub/c.TXT", "a.txt", "b.txt"]
+    assert names(scan(ScopeSpec(tree, recurse=True, pattern="^[a-d]", exclude="^d", regex=True)), tree) == ["a.txt", "b.txt", "Sub/c.TXT"]
     assert names(scan(ScopeSpec(tree, exclude="   ")), tree) == ["a.txt", "b.txt", "photo.JPG"]
     with pytest.raises(ValueError, match="invalid regex"):
         scan(ScopeSpec(tree, exclude="(", regex=True))
@@ -63,7 +63,7 @@ def test_order_paths(tmp_path: Path):
         p.write_text("x")
         os.utime(p, (0, 1_700_000_000 - i))  # IMG_10 newest, a.txt oldest
         paths.append(p)
-    assert names(order_paths(paths), tmp_path) == ["IMG_10.jpg", "a.txt", "b/IMG_1.jpg", "img_2.jpg"]
+    assert names(order_paths(paths), tmp_path) == ["a.txt", "b/IMG_1.jpg", "IMG_10.jpg", "img_2.jpg"]
     assert names(order_paths(paths, "name"), tmp_path) == ["a.txt", "b/IMG_1.jpg", "img_2.jpg", "IMG_10.jpg"]
     assert names(order_paths(paths, "modified"), tmp_path) == ["a.txt", "b/IMG_1.jpg", "img_2.jpg", "IMG_10.jpg"]
     assert names(order_paths(paths, "modified", reverse=True), tmp_path) == ["IMG_10.jpg", "img_2.jpg", "b/IMG_1.jpg", "a.txt"]

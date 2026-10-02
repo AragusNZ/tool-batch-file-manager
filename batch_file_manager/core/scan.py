@@ -57,7 +57,12 @@ def scan(spec: ScopeSpec) -> list[Path]:
             found.extend(base / f for f in files if matches(f))
         if not spec.recurse:
             break
-    return sorted(found)
+    return sorted(found, key=path_key)
+
+
+def path_key(p: Path) -> list[str]:
+    """Sort key for paths: case-insensitive, parent before children, the same on every platform."""
+    return [part.casefold() for part in p.parts]
 
 
 def _natural(name: str) -> list:
@@ -67,9 +72,9 @@ def _natural(name: str) -> list:
 def order_paths(paths: list[Path], order: str = "path", reverse: bool = False) -> list[Path]:
     """``paths`` in preview order: by path, by leaf name (natural: IMG_2 before IMG_10) or by modified time."""
     if order == "name":
-        key = lambda p: (_natural(p.name), p)  # noqa: E731
+        key = lambda p: (_natural(p.name), path_key(p))  # noqa: E731
     elif order == "modified":
-        key = lambda p: (p.lstat().st_mtime, p)  # noqa: E731
+        key = lambda p: (p.lstat().st_mtime, path_key(p))  # noqa: E731
     else:
-        key = None
+        key = path_key
     return sorted(paths, key=key, reverse=reverse)

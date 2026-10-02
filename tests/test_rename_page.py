@@ -148,9 +148,9 @@ def test_order_reverse_and_hide_unchanged(qapp, tree: Path, monkeypatch):
     page.hide_unchanged.setChecked(False)
     assert not any(page.table.isRowHidden(i) for i in range(3))
     opened: list = []
-    monkeypatch.setattr(rename_module.QDesktopServices, "openUrl", lambda url: opened.append(url.toLocalFile()))
+    monkeypatch.setattr(rename_module.QDesktopServices, "openUrl", lambda url: opened.append(Path(url.toLocalFile())))
     page._open_row(page.table.item(1, 1))
-    assert opened == [str(tree)]
+    assert opened == [tree]
 
 
 def test_editor_widgets_follow_the_field_types_and_update_summary(qapp):
@@ -178,7 +178,7 @@ def test_preview_shows_statuses_and_gates_the_button(qapp, tree: Path):
     assert not page.rename_button.isEnabled() and page.summary.text() == "0 to rename, 4 unchanged, 0 problem(s)"
     page.add_rule(Extension(mode="lower"))
     page.refresh()
-    assert rows(page) == [("Sub", "Sub", ""), ("a.txt", "a.txt", ""), ("b.txt", "b.txt", ""), ("photo.JPG", "photo.jpg", "rename")]
+    assert rows(page) == [("a.txt", "a.txt", ""), ("b.txt", "b.txt", ""), ("photo.JPG", "photo.jpg", "rename"), ("Sub", "Sub", "")]
     assert page.table.item(0, 0).text() == "" and page.rename_button.text() == "Rename 1 item(s)"
     assert page.rename_button.isEnabled()
     page.add_rule(Replace(find="^.$", replace="x", regex=True))
@@ -212,12 +212,12 @@ def test_rename_then_undo_through_the_window(qapp, tree: Path, monkeypatch, jour
     assert page.rename_button.isEnabled()
     page.rename()
     wait_job(w, qapp)
-    # preview order is path order: Sub, Sub/Deep, Sub/Deep/d.txt, Sub/c.TXT, a.txt, b.txt, photo.JPG
-    assert sorted(p.name for p in tree.iterdir()) == ["01-Sub", "05-a.txt", "06-b.txt", "07-photo.JPG"]
-    assert (tree / "01-Sub" / "02-Deep" / "03-d.txt").exists() and (tree / "01-Sub" / "04-c.TXT").exists()
+    # preview order is path order: a.txt, b.txt, photo.JPG, Sub, Sub/c.TXT, Sub/Deep, Sub/Deep/d.txt
+    assert sorted(p.name for p in tree.iterdir()) == ["01-a.txt", "02-b.txt", "03-photo.JPG", "04-Sub"]
+    assert (tree / "04-Sub" / "06-Deep" / "07-d.txt").exists() and (tree / "04-Sub" / "05-c.TXT").exists()
     assert page.undo_button.isEnabled() and journal_file.exists()
-    assert "a.txt -> 05-a.txt" in w._job_lines and w.result.text() == "Renamed 7 item(s)"
-    assert [r[0] for r in rows(page)][-1] == "07-photo.JPG"  # the preview follows the rescan
+    assert "a.txt -> 01-a.txt" in w._job_lines and w.result.text() == "Renamed 7 item(s)"
+    assert [r[0] for r in rows(page)][-1] == "07-d.txt"  # the preview follows the rescan
     page.clear_rules()
     page.undo()
     wait_job(w, qapp)

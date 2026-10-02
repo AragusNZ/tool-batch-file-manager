@@ -5,6 +5,12 @@ All notable changes to this project are documented here, in
 
 ## [Unreleased]
 
+### Fixed
+
+- Path order is the same on every platform: case-insensitive, a folder before its contents. It was
+  case-sensitive on Linux and case-insensitive on Windows, which made the test suite fail on the Windows
+  release build.
+
 ## [1.0.0] - 2026-10-02
 
 ### Fixed

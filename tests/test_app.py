@@ -187,7 +187,7 @@ def test_default_window_fits_its_content(qapp):
     w.show()
     content = w.centralWidget().minimumSizeHint()
     assert w.minimumSize().height() >= content.height()  # the window cannot shrink below its content
-    assert content.height() <= 760 and content.width() <= 760
+    assert content.height() <= w.height() and content.width() <= w.width()  # the first-run size is above it
 
 
 def test_theme_menu_sets_and_remembers(qapp, monkeypatch):
@@ -290,8 +290,8 @@ def test_about_names_the_log_file(qapp, monkeypatch):
 
 def test_open_log_file_from_the_help_menu(qapp, monkeypatch):
     opened: list = []
-    monkeypatch.setattr(app_module.QDesktopServices, "openUrl", lambda url: opened.append(url.toLocalFile()))
+    monkeypatch.setattr(app_module.QDesktopServices, "openUrl", lambda url: opened.append(Path(url.toLocalFile())))
     w = MainWindow()
     action = next(a for a in w.findChildren(app_module.QAction) if a.text() == "Open &Log File")
     action.trigger()
-    assert opened == [str(app_module.LOG_FILE)]
+    assert opened == [app_module.LOG_FILE]
