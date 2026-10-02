@@ -5,6 +5,8 @@ All notable changes to this project are documented here, in
 
 ## [Unreleased]
 
+## [1.0.1] - 2026-10-02
+
 ### Fixed
 
 - Path order is the same on every platform: case-insensitive, a folder before its contents. It was
