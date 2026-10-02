@@ -42,7 +42,7 @@ def log():
 
 SETTINGS_KEYS = (
     "geometry", "last_dir", "recurse", "kinds", "check_updates", "theme",
-    "rename/rules", "rename/presets", "rename/order", "rename/reverse", "rename/hide_unchanged",
+    "rename/rules", "rename/presets", "rename/order", "rename/reverse", "rename/hide_unchanged", "rename/splitter",
 )
 
 

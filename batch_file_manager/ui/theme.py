@@ -21,12 +21,12 @@ SCHEMES = {
 R = QPalette.ColorRole
 LIGHT = {
     R.Window: "#F3F3F3",  # SolidBackgroundFillColorBase
-    R.AlternateBase: "#FBFBFB",  # CardBackgroundFillColorDefault over base
+    R.AlternateBase: "#FFFFFF",  # card, lifted from CardBackgroundFillColorDefault for contrast
     R.Base: "#FDFDFD",  # ControlFillColorDefault over card
     R.Button: "#FDFDFD",
     R.Midlight: "#F9F9F9",  # ControlFillColorSecondary (hover)
     R.Dark: "#F5F5F5",  # ControlFillColorTertiary (pressed)
-    R.Mid: "#E5E5E5",  # Card/ControlStrokeColorDefault
+    R.Mid: "#DCDCDC",  # Card/ControlStrokeColorDefault, darkened a step
     R.WindowText: "#1B1B1B",  # TextFillColorPrimary
     R.Text: "#1B1B1B",
     R.ButtonText: "#1B1B1B",
@@ -43,7 +43,7 @@ DARK = {
     R.Button: "#373737",
     R.Midlight: "#3C3C3C",
     R.Dark: "#323232",
-    R.Mid: "#454545",
+    R.Mid: "#4F4F4F",
     R.WindowText: "#FFFFFF",
     R.Text: "#FFFFFF",
     R.ButtonText: "#FFFFFF",
@@ -54,21 +54,30 @@ DARK = {
     "disabled": "#787878",
 }
 
-# Always on: card surfaces and spacing. Safe under any style - it only touches containers.
+# Always on: card surfaces, the section header above each card, and spacing. Safe under any style - it only touches containers.
 METRICS = """
 QGroupBox {
     background: palette(alternate-base);
     border: 1px solid palette(mid);
     border-radius: 4px;
-    margin-top: 14px;
+    margin-top: 24px;
     padding: 12px;
 }
 QGroupBox::title {
     subcontrol-origin: margin;
-    left: 12px;
-    padding: 0 4px;
+    subcontrol-position: top left;
+    left: 0;
+    top: 2px;
+    padding: 0;
     font-weight: 600;
 }
+QTabWidget::pane {
+    border: 1px solid palette(mid);
+    border-radius: 4px;
+    padding: 12px;
+    top: -1px;
+}
+QSplitter::handle { background: transparent; }
 QStatusBar::item { border: none; }
 """
 

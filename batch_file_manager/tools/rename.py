@@ -4,12 +4,12 @@ import json
 from pathlib import Path
 from typing import Callable
 
-from PySide6.QtCore import Qt, QTimer, QUrl, Signal
+from PySide6.QtCore import QByteArray, Qt, QTimer, QUrl, Signal
 from PySide6.QtGui import QDesktopServices, QPalette
 from PySide6.QtWidgets import (
     QAbstractItemView, QCheckBox, QComboBox, QGroupBox, QHBoxLayout, QHeaderView, QInputDialog, QLabel, QListWidget,
-    QListWidgetItem, QMenu, QMessageBox, QPushButton, QStackedWidget, QTableWidget, QTableWidgetItem, QToolButton,
-    QVBoxLayout, QWidget,
+    QListWidgetItem, QMenu, QMessageBox, QPushButton, QScrollArea, QSplitter, QStackedWidget, QTableWidget,
+    QTableWidgetItem, QToolButton, QVBoxLayout, QWidget,
 )
 
 from batch_file_manager.core.pattern import infer_patterns
@@ -58,8 +58,8 @@ class RenamePage(QWidget):
         self.detect_menu.aboutToShow.connect(self._build_detect_menu)
         self.detect_button.setMenu(self.detect_menu)
         self.remove_button = QPushButton("Remove", clicked=self.remove_rule)
-        self.up_button = QPushButton("Up", clicked=lambda: self.move_rule(-1))
-        self.down_button = QPushButton("Down", clicked=lambda: self.move_rule(1))
+        self.up_button = QToolButton(arrowType=Qt.ArrowType.UpArrow, toolTip="Move up", clicked=lambda: self.move_rule(-1))
+        self.down_button = QToolButton(arrowType=Qt.ArrowType.DownArrow, toolTip="Move down", clicked=lambda: self.move_rule(1))
         self.clear_button = QPushButton("Clear", clicked=self.clear_rules)
         bar = QHBoxLayout()
         bar.setSpacing(8)
@@ -67,25 +67,42 @@ class RenamePage(QWidget):
             bar.addWidget(b)
         bar.addStretch()
         left = QVBoxLayout()
+        left.setContentsMargins(0, 0, 0, 0)  # every card already pads 12
         left.setSpacing(8)
         left.addLayout(bar)
         left.addWidget(self.rule_list)
 
+        # The hint lives outside the editor form: a wrapped label inside QFormLayout inside a QStackedWidget
+        # never gets its height-for-width, so it was cut off. A plain box layout honours it.
+        self.hint = QLabel("", wordWrap=True)
+        self.hint.setForegroundRole(QPalette.ColorRole.PlaceholderText)
         self.editors = QStackedWidget()
         placeholder = QLabel("Add a rule, or select one to edit it.", alignment=Qt.AlignmentFlag.AlignCenter)
         placeholder.setForegroundRole(QPalette.ColorRole.PlaceholderText)
         self.editors.addWidget(placeholder)
+        # The scroll area keeps the tallest editor from setting the floor of the whole row; it only scrolls
+        # when the window is genuinely tiny.
+        scroll = QScrollArea(widgetResizable=True, frameShape=QScrollArea.Shape.NoFrame)
+        scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        scroll.viewport().setAutoFillBackground(False)
+        scroll.setWidget(self.editors)
+        self.editors.setAutoFillBackground(False)
         editor_box = QGroupBox("Rule")
         editor_layout = QVBoxLayout(editor_box)
-        editor_layout.addWidget(self.editors)
-        editor_layout.addStretch()
+        editor_layout.setContentsMargins(0, 0, 0, 0)
+        editor_layout.setSpacing(8)
+        editor_layout.addWidget(self.hint)
+        editor_layout.addWidget(scroll)
 
         rules_row = QHBoxLayout()
+        rules_row.setContentsMargins(0, 0, 0, 0)
         rules_row.setSpacing(12)
         rules_box = QGroupBox("Rules, in order")
         rules_box.setLayout(left)
         rules_row.addWidget(rules_box, stretch=3)
         rules_row.addWidget(editor_box, stretch=2)
+        rules_widget = QWidget()
+        rules_widget.setLayout(rules_row)
 
         # --- preview
         self.order = QComboBox()
@@ -118,10 +135,12 @@ class RenamePage(QWidget):
         header.setSectionResizeMode(3, QHeaderView.ResizeMode.ResizeToContents)
         preview_box = QGroupBox("Preview")
         preview_layout = QVBoxLayout(preview_box)
+        preview_layout.setContentsMargins(0, 0, 0, 0)
+        preview_layout.setSpacing(8)
         preview_layout.addLayout(view)
         preview_layout.addWidget(self.table)
 
-        # --- actions
+        # --- actions: the preview's own footer
         self.summary = QLabel("")
         self.undo_button = QPushButton("Undo last rename", clicked=self.undo)
         self.undo_button.setEnabled(bool(read_journal()))
@@ -131,13 +150,19 @@ class RenamePage(QWidget):
         actions.addWidget(self.summary, stretch=1)
         actions.addWidget(self.undo_button)
         actions.addWidget(self.rename_button)
+        preview_layout.addLayout(actions)
 
+        self.splitter = QSplitter(Qt.Orientation.Vertical, childrenCollapsible=False)
+        self.splitter.addWidget(rules_widget)
+        self.splitter.addWidget(preview_box)
+        self.splitter.setStretchFactor(0, 2)
+        self.splitter.setStretchFactor(1, 3)
+        if state := settings().value("rename/splitter"):
+            self.splitter.restoreState(QByteArray(state))
+        self.splitter.splitterMoved.connect(lambda *_: settings().setValue("rename/splitter", self.splitter.saveState()))
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
-        layout.setSpacing(12)
-        layout.addLayout(rules_row, stretch=2)
-        layout.addWidget(preview_box, stretch=3)
-        layout.addLayout(actions)
+        layout.addWidget(self.splitter)
 
         self._timer = QTimer(self, singleShot=True, interval=DEBOUNCE_MS)
         self._timer.timeout.connect(self.refresh)
@@ -193,6 +218,7 @@ class RenamePage(QWidget):
 
     def _show_editor(self, row: int) -> None:
         self.editors.setCurrentIndex(row + 1 if row >= 0 else 0)
+        self.hint.setText(self.rules[row].hint if 0 <= row < len(self.rules) else "")
         self._refresh_rule_buttons()
 
     def _tick_changed(self, item: QListWidgetItem) -> None:
@@ -367,9 +393,10 @@ class RenamePage(QWidget):
         def fn(log, progress, cancelled) -> None:
             work(log, progress, cancelled, journal)
 
-        def done() -> None:
+        def done() -> str:
             if journal:
                 write_journal(journal)
             self.undo_button.setEnabled(bool(read_journal()))
+            return f"{'Put back' if label == 'Undo' else 'Renamed'} {len(journal)} item(s)"
 
         self.job_requested.emit(label, fn, done)

@@ -22,6 +22,7 @@ def test_asset_path_points_into_the_package():
 
 def test_stylesheet_adds_the_control_look_only_under_fusion():
     assert "QGroupBox" in theme.stylesheet("windows11") and "QPushButton" not in theme.stylesheet("windows11")
+    assert "QTabWidget::pane" in theme.stylesheet("windows11")
     assert "QPushButton" in theme.stylesheet("Fusion")
 
 

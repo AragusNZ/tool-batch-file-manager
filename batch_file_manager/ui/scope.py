@@ -42,6 +42,7 @@ class ScopePanel(QGroupBox):
         top.addWidget(self.folder, stretch=1)
         top.addWidget(browse)
         grid = QGridLayout(self)
+        grid.setContentsMargins(0, 0, 0, 0)  # the card already pads
         grid.setHorizontalSpacing(8)
         grid.setVerticalSpacing(8)
         grid.addLayout(top, 0, 0, 1, 4)
@@ -54,7 +55,7 @@ class ScopePanel(QGroupBox):
         grid.addWidget(self.match_case, 2, 3)
         grid.addWidget(QLabel("Excluding:"), 3, 0)
         grid.addWidget(self.exclude, 3, 1)
-        grid.addWidget(self.summary, 4, 0, 1, 4)
+        grid.addWidget(self.summary, 3, 2, 1, 2)
         grid.setColumnStretch(1, 1)
 
         self._timer = QTimer(self, singleShot=True, interval=DEBOUNCE_MS)

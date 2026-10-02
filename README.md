@@ -93,8 +93,8 @@ Nothing is renamed around a problem for you. Fix the rules, then rename. Swappin
 changing only the case of a name both work in one pass.
 
 **Rename** asks once, then does the lot. The status bar counts progress and **Cancel** stops after the
-current folder. Each rename is written to the log pane; a file that could not be renamed is reported there
-and the rest still go through.
+current folder. When it finishes, the status bar says how many items were renamed. A file that could not be
+renamed does not stop the rest: the run is reported as failed, with every item listed under **Show Details**.
 
 **Undo last rename** puts everything from the last run back under its previous names, including the files
 inside a folder that was renamed. Undo is remembered across restarts, and undoing an undo redoes it.
@@ -110,8 +110,9 @@ Check the `SHA256SUMS.txt` hash if you want certainty that the file is the one p
 
 ## Problems
 
-Errors show in red in the log pane. Full details go to `BatchFileManager.log` in your temp folder —
-**Help > About** shows the exact path. Please attach it to a GitHub issue.
+A failed run opens a dialog naming what went wrong. Every run is also written in full to
+`BatchFileManager.log` in your temp folder — **Help > Open Log File** opens it. Please attach it to a GitHub
+issue.
 
 ## Licence
 

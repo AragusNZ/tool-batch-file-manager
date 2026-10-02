@@ -53,7 +53,7 @@ tree after the rename (`expect`) or the summary text that must block the Rename 
 
 ```
 batch_file_manager/
-  app.py          the window: Folder panel, tool tabs, log, status bar, jobs on the worker, update check
+  app.py          the window: Folder panel, tool tabs, status bar, jobs on the worker, update check
   core/           pure Python, no Qt import anywhere
     scan.py       ScopeSpec + scan(): the items in scope; order_paths() for the preview order
     rules.py      the rule dataclasses, apply_rules(), validate_name(), to_dicts()/from_dicts()

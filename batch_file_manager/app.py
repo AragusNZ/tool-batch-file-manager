@@ -3,7 +3,6 @@ import logging.handlers
 import sys
 import tempfile
 from functools import partial
-from html import escape
 from pathlib import Path
 from typing import Callable
 
@@ -12,8 +11,8 @@ from PySide6.QtGui import (
     QAction, QActionGroup, QCloseEvent, QDesktopServices, QFont, QFontDatabase, QGuiApplication, QIcon, QPalette,
 )
 from PySide6.QtWidgets import (
-    QApplication, QGroupBox, QMainWindow, QMessageBox, QPlainTextEdit, QProgressBar, QPushButton, QStyleFactory,
-    QTabWidget, QVBoxLayout, QWidget,
+    QApplication, QLabel, QMainWindow, QMessageBox, QProgressBar, QPushButton, QStyleFactory, QTabWidget, QVBoxLayout,
+    QWidget,
 )
 
 from batch_file_manager import __version__
@@ -29,14 +28,14 @@ APP_NAME = "Batch File Manager"
 LOG_FILE = Path(tempfile.gettempdir()) / "BatchFileManager.log"  # tracebacks land here; the exe has no console
 TOOLS = [("Rename", RenamePage)]  # tab label, page class; a page has set_items(paths, root) and job_requested
 log = logging.getLogger(__name__)
+job_log = logging.getLogger("batch_file_manager.job")  # every job line, so the file holds the full transcript
 
 
 class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
         self.setWindowTitle(f"{APP_NAME} {__version__}")
-        self.resize(960, 760)
-        self.setMinimumSize(760, 560)
+        self.resize(1000, 860)  # no setMinimumSize: the layout's own minimum is the floor, so nothing can crop
         if geometry := settings().value("geometry"):
             self.restoreGeometry(geometry)
         self._worker: Worker | None = None
@@ -44,6 +43,9 @@ class MainWindow(QMainWindow):
         self._update_worker: Worker | None = None
         self._paths: list[Path] = []
         self._spec: ScopeSpec | None = None
+        self._job_lines: list[str] = []  # the running job's transcript, shown in full when it fails
+        self._job_error = ""
+        self._job_cancelled = False
 
         self.scope = ScopePanel()
         self.scope.restore(settings().value("recurse", False, type=bool), settings().value("kinds", "files"))
@@ -55,20 +57,19 @@ class MainWindow(QMainWindow):
             page.job_requested.connect(self.run_job)
             self.tabs.addTab(page, label)
             self.pages.append(page)
-        self.log_view = QPlainTextEdit(readOnly=True, maximumBlockCount=5000)
-        self.log_view.setFont(QFontDatabase.systemFont(QFontDatabase.SystemFont.FixedFont))
 
         self._build_menus()
         layout = QVBoxLayout()
         layout.setContentsMargins(16, 16, 16, 16)  # Fluent: 16epx surface to edge, 12 between cards
         layout.setSpacing(12)
         layout.addWidget(self.scope)
-        layout.addWidget(self.tabs, stretch=4)
-        layout.addWidget(self._log_group(), stretch=1)
+        layout.addWidget(self.tabs)
         root = QWidget()
         root.setLayout(layout)
         self.setCentralWidget(root)
 
+        self.result = QLabel("")  # the last job's outcome; permanent, so the rescan's count does not replace it
+        self.statusBar().addPermanentWidget(self.result)
         self.progress = QProgressBar(maximumWidth=140, textVisible=False)
         self.progress.setRange(0, 0)
         self.progress.hide()
@@ -82,13 +83,6 @@ class MainWindow(QMainWindow):
             self.scope.set_folder(Path(last))
 
     # --- construction ------------------------------------------------------
-    def _log_group(self) -> QGroupBox:
-        inner = QVBoxLayout()
-        inner.addWidget(self.log_view)
-        group = QGroupBox("Log")
-        group.setLayout(inner)
-        return group
-
     def _build_menus(self) -> None:
         theme_menu = self.menuBar().addMenu("&View").addMenu("&Theme")
         group = QActionGroup(self)
@@ -104,11 +98,15 @@ class MainWindow(QMainWindow):
         self.startup_check.toggled.connect(lambda on: settings().setValue("check_updates", on))
         help_menu.addAction(self.startup_check)
         help_menu.addSeparator()
+        help_menu.addAction(QAction("Open &Log File", self, triggered=self._open_log))
         help_menu.addAction(QAction("&About", self, triggered=self._about))
 
     def _set_theme(self, name: str) -> None:
         settings().setValue("theme", name)
         apply_scheme(name)
+
+    def _open_log(self) -> None:
+        QDesktopServices.openUrl(QUrl.fromLocalFile(str(LOG_FILE)))
 
     def _about(self) -> None:
         QMessageBox.about(self, APP_NAME, f"{APP_NAME} {__version__}\n\nLog file: {LOG_FILE}")
@@ -121,7 +119,7 @@ class MainWindow(QMainWindow):
         result: dict = {}
         self._update_worker = Worker(lambda: result.update(latest=latest_version()), parent=self)
         if manual:
-            self._update_worker.failed.connect(lambda m: self.log(f"ERROR: update check failed: {m}"))
+            self._update_worker.failed.connect(lambda m: QMessageBox.warning(self, APP_NAME, f"Update check failed: {m}"))
         self._update_worker.finished.connect(lambda: self._on_update_checked(result.get("latest"), manual))
         self._update_worker.start()
 
@@ -130,7 +128,7 @@ class MainWindow(QMainWindow):
             self._update_worker.deleteLater()
         self._update_worker = None
         if latest is None:
-            return  # failed: already logged if manual
+            return  # failed: already reported if manual
         if is_newer(latest, __version__):
             answer = QMessageBox.question(
                 self, APP_NAME, f"{APP_NAME} {latest} is available (you have {__version__}).\n\nOpen the download page?"
@@ -176,16 +174,21 @@ class MainWindow(QMainWindow):
     # --- jobs --------------------------------------------------------------
     @Slot(str, object, object)
     def run_job(self, label: str, fn: Callable, done: Callable | None) -> None:
-        """Run ``fn(log, progress, cancelled)`` off the UI thread, then ``done()`` on it, then rescan."""
+        """Run ``fn(log, progress, cancelled)`` off the UI thread, then ``done()`` on it, then rescan.
+
+        ``done`` may return a string, the outcome for the status bar; otherwise "<label> finished" is shown.
+        """
         if self._worker is not None:
             return
-        self.log(f"--- {label} ---")
+        self._job_lines, self._job_error, self._job_cancelled = [], "", False
+        self.result.clear()
+        job_log.info("--- %s ---", label)
         self._worker = Worker(lambda: fn(self._worker.message.emit, self._worker.progress.emit,
                                          self._worker.isInterruptionRequested), parent=self)
         self._worker.message.connect(self.log)
         self._worker.progress.connect(self._on_progress)
         self._worker.failed.connect(self._on_failed)
-        self._worker.finished.connect(lambda: self._on_finished(done))
+        self._worker.finished.connect(lambda: self._on_finished(label, done))
         self._set_busy(True)
         self._worker.start()
 
@@ -207,17 +210,28 @@ class MainWindow(QMainWindow):
 
     @Slot(str)
     def _on_failed(self, message: str) -> None:
-        self.log(f"ERROR: {message} (details: {LOG_FILE})")
+        self._job_error = message  # reported by _on_finished, which always follows
 
-    def _on_finished(self, done: Callable | None) -> None:
-        self.log("done")
+    def _on_finished(self, label: str, done: Callable | None) -> None:
         if self._worker is not None:
             self._worker.deleteLater()
         self._worker = None
         self._set_busy(False)
-        if done is not None:
-            done()
+        text = (done() if done is not None else None) or f"{label} finished"
+        if self._job_error:
+            text = f"{label} failed: {self._job_error}"
+        elif self._job_cancelled:
+            text = f"{label} cancelled - {text}"
+        self.result.setForegroundRole(QPalette.ColorRole.BrightText if self._job_error else QPalette.ColorRole.WindowText)
+        self.result.setText(text)
+        if self._job_error:
+            self._report_failure(label, self._job_error)
         self.rescan()
+
+    def _report_failure(self, label: str, message: str) -> None:
+        box = QMessageBox(QMessageBox.Icon.Warning, APP_NAME, f"{label} failed: {message}\n\nFull details: {LOG_FILE}", parent=self)
+        box.setDetailedText("\n".join(self._job_lines))
+        box.exec()
 
     @Slot(int, int)
     def _on_progress(self, done: int, total: int) -> None:
@@ -229,13 +243,14 @@ class MainWindow(QMainWindow):
     def _cancel(self) -> None:
         if self._worker is not None:
             self._worker.requestInterruption()
+            self._job_cancelled = True
             self.cancel_button.setEnabled(False)
-            self.log("cancelling after the current folder...")
+            self.statusBar().showMessage("Cancelling after the current folder...")
 
     def closeEvent(self, event: QCloseEvent) -> None:
         # Destroying a running QThread aborts the process; refuse to close until the job is done.
         if self._worker is not None:
-            self.log("still working - press Cancel or wait for 'done'")
+            self.statusBar().showMessage("Still working - press Cancel or wait for it to finish")
             event.ignore()
             return
         for worker in (self._update_worker, self._scan_worker):
@@ -247,11 +262,9 @@ class MainWindow(QMainWindow):
     # --- logging -----------------------------------------------------------
     @Slot(str)
     def log(self, message: str) -> None:
-        if message.startswith("ERROR"):
-            red = self.palette().brightText().color().name()  # SystemFillColorCritical for this scheme
-            self.log_view.appendHtml(f'<span style="color:{red};">{escape(message)}</span>')
-        else:
-            self.log_view.appendPlainText(message)
+        """A line from the running job: into the log file, and kept for the failure dialog."""
+        (job_log.error if message.startswith("ERROR") else job_log.info)(message)
+        self._job_lines.append(message)
 
 
 def check_on_startup() -> bool:

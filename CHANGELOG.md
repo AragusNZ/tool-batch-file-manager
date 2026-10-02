@@ -5,6 +5,21 @@ All notable changes to this project are documented here, in
 
 ## [Unreleased]
 
+### Fixed
+
+- Controls no longer crop at smaller window sizes: the window's minimum now comes from its content
+  instead of a fixed size, so the rule editor's fields and hint always get their full height.
+
+### Changed
+
+- Clearer layout: section headers sit above their cards, the tool tab has its own framed area, the
+  Rename / Undo row lives inside the Preview card, and the rules / preview boundary is a draggable
+  splitter that is remembered between runs. Up / Down are arrow buttons.
+- The log pane is gone. A finished job reports its outcome in the status bar ("Renamed 12 item(s)");
+  a failed one opens a dialog with the full list of what was and was not renamed under Show Details.
+  The full transcript still goes to `BatchFileManager.log`, now one click away at **Help > Open Log
+  File**.
+
 ### Added
 
 - **Excluding** in the Folder panel: a second glob or regex that drops matching names, and skips a matching

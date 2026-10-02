@@ -32,6 +32,7 @@ def test_add_edit_reorder_tick_remove_and_persist(qapp, tree: Path):
     page.move_rule(-1)
     assert [r.kind for r in page.rules] == ["case", "replace"] and page.rule_list.currentRow() == 0
     assert page.editors.currentWidget().rule is page.rules[0]
+    assert page.hint.text() == Case.hint
     page.move_rule(-1)  # already at the top: no-op
     assert [r.kind for r in page.rules] == ["case", "replace"]
     page.rule_list.item(0).setCheckState(Qt.CheckState.Unchecked)
@@ -215,7 +216,7 @@ def test_rename_then_undo_through_the_window(qapp, tree: Path, monkeypatch, jour
     assert sorted(p.name for p in tree.iterdir()) == ["01-Sub", "05-a.txt", "06-b.txt", "07-photo.JPG"]
     assert (tree / "01-Sub" / "02-Deep" / "03-d.txt").exists() and (tree / "01-Sub" / "04-c.TXT").exists()
     assert page.undo_button.isEnabled() and journal_file.exists()
-    assert "a.txt -> 05-a.txt" in w.log_view.toPlainText()
+    assert "a.txt -> 05-a.txt" in w._job_lines and w.result.text() == "Renamed 7 item(s)"
     assert [r[0] for r in rows(page)][-1] == "07-photo.JPG"  # the preview follows the rescan
     page.clear_rules()
     page.undo()
@@ -256,6 +257,8 @@ def test_partial_failure_still_journals_what_was_renamed(qapp, tree: Path, monke
         return real(self, target)
 
     monkeypatch.setattr(Path, "rename", flaky)
+    reported: list = []
+    monkeypatch.setattr(MainWindow, "_report_failure", lambda self, label, message: reported.append((label, message)))
     w = MainWindow()
     page: RenamePage = w.pages[0]
     w.scope.set_folder(tree)
@@ -266,8 +269,8 @@ def test_partial_failure_still_journals_what_was_renamed(qapp, tree: Path, monke
     page.refresh()
     page.rename()
     wait_job(w, qapp)
-    text = w.log_view.toPlainText()
-    assert "ERROR: b.txt -> xb.txt: Permission denied" in text and "ERROR: 1 of 2 rename(s) failed" in text
+    assert "ERROR: b.txt -> xb.txt: Permission denied" in w._job_lines
+    assert reported == [("Rename", "1 of 2 rename(s) failed")] and w.result.text() == "Rename failed: 1 of 2 rename(s) failed"
     assert [(a.name, b.name) for a, b in rename_module.read_journal()] == [("xa.txt", "a.txt")]
     assert page.undo_button.isEnabled()
 

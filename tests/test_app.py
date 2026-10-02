@@ -1,4 +1,4 @@
-"""MainWindow wiring: scope drives the scan, jobs run on the worker, errors reach the log."""
+"""MainWindow wiring: scope drives the scan, jobs run on the worker, outcomes reach the status bar."""
 
 from pathlib import Path
 
@@ -7,6 +7,7 @@ from PySide6.QtGui import QCloseEvent
 
 from batch_file_manager import app as app_module
 from batch_file_manager.app import MainWindow
+from batch_file_manager.core.rules import Numbering
 from batch_file_manager.core.scan import ScopeSpec
 
 
@@ -91,12 +92,12 @@ def test_job_runs_on_worker_then_done_then_rescan(qapp, tree: Path):
         (tree / "new.txt").write_text("n")
         seen["cancelled"] = cancelled()
 
-    w.run_job("T", fn, lambda: seen.setdefault("done", True))
+    w.run_job("T", fn, lambda: seen.setdefault("done", True) and "all good")
     assert not w.tabs.isEnabled() and not w.scope.isEnabled() and not w.cancel_button.isHidden()
+    assert w.result.text() == ""
     w.run_job("ignored", fn, None)  # one job at a time
     wait_job(w, qapp)
-    text = w.log_view.toPlainText()
-    assert "--- T ---" in text and "from worker" in text and "ignored" not in text and text.rstrip().endswith("done")
+    assert w._job_lines == ["from worker"] and w.result.text() == "all good"
     assert seen == {"cancelled": False, "done": True}
     assert w.tabs.isEnabled() and w.cancel_button.isHidden() and w._worker is None
     assert [p.name for p in w._paths] == ["a.txt", "b.txt", "new.txt", "photo.JPG"]
@@ -104,24 +105,52 @@ def test_job_runs_on_worker_then_done_then_rescan(qapp, tree: Path):
     assert w.progress.maximum() == 2 and w.progress.value() == 1
 
 
-def test_job_error_reaches_log_and_cancel_flags_the_worker(qapp, tree: Path):
+def test_job_error_opens_a_dialog_and_cancel_flags_the_worker(qapp, tree: Path, monkeypatch):
     import threading
 
     gate = threading.Event()
+    reported: list = []
+    monkeypatch.setattr(MainWindow, "_report_failure", lambda self, label, message: reported.append((label, message, list(self._job_lines))))
     w = MainWindow()
     w.scope.set_folder(tree)
     wait_scan(w, qapp)
 
     def fn(log, progress, cancelled):
+        log("ERROR: one item")
         gate.wait(5)
         raise RuntimeError("bad thing")
 
     w.run_job("T", fn, None)
     w.cancel_button.click()
     assert not w.cancel_button.isEnabled() and w._worker.isInterruptionRequested()
+    assert w.statusBar().currentMessage().startswith("Cancelling")
     gate.set()
     wait_job(w, qapp)
-    assert "ERROR: bad thing" in w.log_view.toPlainText() and "cancelling" in w.log_view.toPlainText()
+    assert reported == [("T", "bad thing", ["ERROR: one item"])]
+    assert w.result.text() == "T failed: bad thing" and w.result.foregroundRole() == app_module.QPalette.ColorRole.BrightText
+
+
+def test_cancelled_job_says_so(qapp, tree: Path):
+    import threading
+
+    gate = threading.Event()
+    w = MainWindow()
+    w.scope.set_folder(tree)
+    wait_scan(w, qapp)
+    w.run_job("T", lambda log, progress, cancelled: gate.wait(5), None)
+    w.cancel_button.click()
+    gate.set()
+    wait_job(w, qapp)
+    assert w.result.text() == "T cancelled - T finished"
+
+
+def test_failure_dialog_carries_the_transcript(qapp, monkeypatch):
+    seen: list = []
+    monkeypatch.setattr(app_module.QMessageBox, "exec", lambda box: seen.append((box.text(), box.detailedText())))
+    w = MainWindow()
+    w._job_lines = ["a -> b", "ERROR: c"]
+    w._report_failure("Rename", "1 of 2 rename(s) failed")
+    assert seen == [(f"Rename failed: 1 of 2 rename(s) failed\n\nFull details: {app_module.LOG_FILE}", "a -> b\nERROR: c")]
 
 
 def test_close_refused_while_busy(qapp, tree: Path):
@@ -134,7 +163,7 @@ def test_close_refused_while_busy(qapp, tree: Path):
     w.run_job("T", lambda log, progress, cancelled: gate.wait(5), None)
     ev = QCloseEvent()
     w.closeEvent(ev)
-    assert not ev.isAccepted() and "still working" in w.log_view.toPlainText()
+    assert not ev.isAccepted() and w.statusBar().currentMessage().startswith("Still working")
     gate.set()
     wait_job(w, qapp)
     ev = QCloseEvent()
@@ -148,6 +177,17 @@ def test_window_geometry_survives_a_restart(qapp):
     w.closeEvent(QCloseEvent())
     assert app_module.settings().value("geometry")
     assert MainWindow().size() == w.size()
+
+
+def test_default_window_fits_its_content(qapp):
+    """No forced minimum: the layout's own minimum is the floor, and the first-run size sits above it even
+    with the tallest rule editor showing, so nothing is ever squeezed below its size hint."""
+    w = MainWindow()
+    w.pages[0].add_rule(Numbering())
+    w.show()
+    content = w.centralWidget().minimumSizeHint()
+    assert w.minimumSize().height() >= content.height()  # the window cannot shrink below its content
+    assert content.height() <= 760 and content.width() <= 760
 
 
 def test_theme_menu_sets_and_remembers(qapp, monkeypatch):
@@ -205,13 +245,15 @@ def test_up_to_date_speaks_only_when_asked(qapp, monkeypatch):
     assert len(seen["info"]) == 1 and "up to date" in seen["info"][0] and seen["opened"] == []
 
 
-def test_update_failure_logged_only_when_asked(qapp, monkeypatch):
+def test_update_failure_reported_only_when_asked(qapp, monkeypatch):
     _stub_update(monkeypatch, OSError("offline"))
+    warned: list[str] = []
+    monkeypatch.setattr(app_module.QMessageBox, "warning", lambda parent, title, text: warned.append(text))
     w = MainWindow()
     _check(w, qapp, manual=False)
-    assert "update check failed" not in w.log_view.toPlainText()
+    assert warned == []
     _check(w, qapp, manual=True)
-    assert "ERROR: update check failed: offline" in w.log_view.toPlainText()
+    assert warned == ["Update check failed: offline"]
 
 
 def test_startup_check_toggle_is_remembered(qapp):
@@ -244,3 +286,12 @@ def test_about_names_the_log_file(qapp, monkeypatch):
     monkeypatch.setattr(app_module.QMessageBox, "about", lambda parent, title, text: seen.append(text))
     MainWindow()._about()
     assert str(app_module.LOG_FILE) in seen[0] and app_module.__version__ in seen[0]
+
+
+def test_open_log_file_from_the_help_menu(qapp, monkeypatch):
+    opened: list = []
+    monkeypatch.setattr(app_module.QDesktopServices, "openUrl", lambda url: opened.append(url.toLocalFile()))
+    w = MainWindow()
+    action = next(a for a in w.findChildren(app_module.QAction) if a.text() == "Open &Log File")
+    action.trigger()
+    assert opened == [str(app_module.LOG_FILE)]

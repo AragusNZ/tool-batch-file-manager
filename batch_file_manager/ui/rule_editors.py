@@ -3,8 +3,7 @@
 from dataclasses import fields
 
 from PySide6.QtCore import Signal
-from PySide6.QtGui import QPalette
-from PySide6.QtWidgets import QCheckBox, QComboBox, QFormLayout, QLabel, QLineEdit, QSpinBox, QWidget
+from PySide6.QtWidgets import QCheckBox, QComboBox, QFormLayout, QLineEdit, QSpinBox, QWidget
 
 from batch_file_manager.core.rules import Rule
 
@@ -21,9 +20,6 @@ class RuleEditor(QWidget):
         self.rule = rule
         form = QFormLayout(self)
         form.setContentsMargins(0, 0, 0, 0)
-        hint = QLabel(rule.hint, wordWrap=True)
-        hint.setForegroundRole(QPalette.ColorRole.PlaceholderText)
-        form.addRow(hint)
         self._widgets: dict[str, QWidget] = {}
         for f in fields(rule):
             if f.name in HIDDEN:

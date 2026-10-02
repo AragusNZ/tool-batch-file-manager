@@ -154,6 +154,7 @@ def isolate(scratch: Path) -> None:
     rename_module.read_journal = lambda p=journal: plan_module.read_journal(p)
     rename_module.write_journal = lambda j, p=journal: plan_module.write_journal(j, p)
     QMessageBox.question = lambda *a, **k: QMessageBox.StandardButton.Yes
+    app_module.MainWindow._report_failure = lambda self, label, message: print(f"      {label} failed: {message}")
 
 
 def wait_for(getter, pause: int = 0) -> None:
@@ -228,13 +229,12 @@ def main() -> int:
     window.show()
     failed = 0
     for scenario in (s for s in SCENARIOS if args.k.lower() in s.name.lower()):
-        window.log(f"=== {scenario.name}")
+        window.statusBar().showMessage(scenario.name)
         try:
             run(scenario, window, scratch / "tree", args.pause)
         except AssertionError as exc:
             failed += 1
             print(f"FAIL  {scenario.name}\n      {exc}")
-            window.log(f"ERROR: {exc}")
         else:
             print(f"ok    {scenario.name}")
     print(f"\n{failed} failed" if failed else "\nall scenarios passed")
